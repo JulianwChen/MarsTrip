@@ -114,11 +114,11 @@ struct Node
 {
     int id;
     double x, y;
-    char ang;
+    char angle;
     Node *next;
     Node *prev;
     Node(int id_, double x_, double y_, char ang_)
-        : id(id_), x(x_), y(y_), ang(ang_), next(nullptr), prev(nullptr) {}
+        : id(id_), x(x_), y(y_), angle(ang_), next(nullptr), prev(nullptr) {}
 };
 
 // Doubly Linked List
@@ -127,6 +127,7 @@ class WayPointList
 
 private:
     // Remove a node from the list
+    // Private since it is not called outside the class
     void removeNode(Node *node)
     {
         if (node->prev)
@@ -172,9 +173,9 @@ public:
     }
 
     // Insert a new node at the end of the list
-    void insert(int id, double x, double y, char ang)
+    void insert(int id, double x, double y, char angle)
     {
-        Node *newNode = new Node(id, x, y, ang);
+        Node *newNode = new Node(id, x, y, angle);
         if (!head)
         {
             head = tail = newNode;
@@ -211,7 +212,7 @@ public:
         while (current && current->next)
         {
             Node *nextNode = current->next;
-            if (current->id == 0 && nextNode->id == 0 && current->ang == nextNode->ang)
+            if (current->id == 0 && nextNode->id == 0 && current->angle == nextNode->angle)
             {
                 removeNode(current);
             }
@@ -232,7 +233,7 @@ public:
         {
             Brain.Screen.setCursor(row, 1);
             Brain.Screen.print("id%d (%.0f,%.0f) %c",
-                               current->id, current->x, current->y, current->ang);
+                               current->id, current->x, current->y, current->angle);
             current = current->next;
             row++;
         }
