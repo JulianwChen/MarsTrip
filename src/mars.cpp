@@ -118,25 +118,25 @@ class WayPointList
 {
 
 private:
-    void removeNode(Node *n)
+    void removeNode(Node *node)
     {
-        if (n->prev)
+        if (node->prev)
         {
-            n->prev->next = n->next;
+            node->prev->next = node->next;
         }
         else
         {
-            head = n->next;
+            head = node->next;
         }
-        if (n->next)
+        if (node->next)
         {
-            n->next->prev = n->prev;
+            node->next->prev = node->prev;
         }
         else
         {
-            tail = n->prev;
+            tail = node->prev;
         }
-        delete n;
+        delete node;
         size--;
     }
 
@@ -151,27 +151,27 @@ public:
 
     ~WayPointList()
     {
-        Node *c = head;
-        while (c)
+        Node *current = head;
+        while (current)
         {
-            Node *n = c->next;
-            delete c;
-            c = n;
+            Node *nextNode = current->next;
+            delete current;
+            current = nextNode;
         }
     }
 
     void insert(int id, double x, double y, char ang)
     {
-        Node *n = new Node(id, x, y, ang);
+        Node *newNode = new Node(id, x, y, ang);
         if (!head)
         {
-            head = tail = n;
+            head = tail = newNode;
         }
         else
         {
-            tail->next = n;
-            n->prev = tail;
-            tail = n;
+            tail->next = newNode;
+            newNode->prev = tail;
+            tail = newNode;
         }
         size++;
     }
@@ -182,12 +182,12 @@ public:
         {
             return;
         }
-        Node *c = head;
+        Node *current = head;
         for (int i = 0; i < index; i++)
         {
-            c = c->next;
+            current = current->next;
         }
-        removeNode(c);
+        removeNode(current);
     }
 
     void update()
@@ -195,12 +195,12 @@ public:
         Node *current = head;
         while (current && current->next)
         {
-            Node *n = current->next;
-            if (current->id == 0 && n->id == 0 && current->ang == n->ang)
+            Node *nextNode = current->next;
+            if (current->id == 0 && nextNode->id == 0 && current->ang == nextNode->ang)
             {
                 removeNode(current);
             }
-            current = n;
+            current = nextNode;
         }
     }
 
@@ -252,12 +252,12 @@ void cali_inertial()
 
 void face(char dir)
 {
-    double h = heading_for(dir);
+    double heading = heading_for(dir);
     Drivetrain.setTurnVelocity(TURN_RPM, rpm);
 
     for (int attempt = 0; attempt < 2; attempt++)
     {
-        Drivetrain.turnToHeading(h, degrees, false);
+        Drivetrain.turnToHeading(heading, degrees, false);
 
         double t0 = Brain.timer(msec);
         while (Drivetrain.isTurning() && (Brain.timer(msec) - t0) < TURN_TIMEOUT_MS)
@@ -267,7 +267,7 @@ void face(char dir)
         Drivetrain.stop(brake);
         wait(SETTLE_MS, msec);
 
-        if (fabs(heading_error(h)) <= HEADING_TOL_DEG)
+        if (fabs(heading_error(heading)) <= HEADING_TOL_DEG)
         {
             return;
         }
@@ -284,17 +284,17 @@ double scan_forward_mm()
     double best = -1.0;
     for (int i = 0; i < 3; i++)
     {
-        double d = read_distance_mm();
-        if (d > 0 && (best < 0 || d < best))
-            best = d;
+        double distance = read_distance_mm();
+        if (distance > 0 && (best < 0 || distance < best))
+            best = distance;
         wait(60, msec);
     }
     return best;
 }
 
-bool object_detected(double d)
+bool object_detected(double distance)
 {
-    return (d > 0 && d <= DETECT_MM);
+    return (distance > 0 && distance <= DETECT_MM);
 }
 
 bool obstacle_ahead()
@@ -303,9 +303,9 @@ bool obstacle_ahead()
     return object_detected(scan_forward_mm());
 }
 
-bool guarded_drive(char dir)
+bool guarded_drive(char direction)
 {
-    double *bank = (dir == 'N') ? &overshootN : &overshootE;
+    double *bank = (direction == 'N') ? &overshootN : &overshootE;
 
     double target = UNIT_MM - *bank;
     if (target <= 1.0)
@@ -352,7 +352,7 @@ bool guarded_drive(char dir)
     }
 
     *bank = 0.0;
-    face(dir);
+    face(direction);
     return true;
 }
 
@@ -382,33 +382,33 @@ void checkpoint(WayPointList *path, double x, double y, char heading)
     wait(1, seconds);
 }
 
-void record_obstacle(WayPointList *path, double x, double y, char dir)
+void record_obstacle(WayPointList *path, double x, double y, char direction)
 {
-    double ox = x + (dir == 'E' ? 1 : 0);
-    double oy = y + (dir == 'N' ? 1 : 0);
-    path->insert(1, ox, oy, dir);
-    checkpoint(path, x, y, dir);
+    double ox = x + (direction == 'E' ? 1 : 0);
+    double oy = y + (direction == 'N' ? 1 : 0);
+    path->insert(1, ox, oy, direction);
+    checkpoint(path, x, y, direction);
 }
 
-bool try_step(WayPointList *path, double &x, double &y, char dir)
+bool try_step(WayPointList *path, double &x, double &y, char direction)
 {
-    face(dir);
+    face(direction);
 
     if (obstacle_ahead())
     {
-        record_obstacle(path, x, y, dir);
-        print_state(path, x, y, dir);
+        record_obstacle(path, x, y, direction);
+        print_state(path, x, y, direction);
         return false;
     }
 
-    if (!guarded_drive(dir))
+    if (!guarded_drive(direction))
     {
-        record_obstacle(path, x, y, dir);
-        print_state(path, x, y, dir);
+        record_obstacle(path, x, y, direction);
+        print_state(path, x, y, direction);
         return false;
     }
 
-    if (dir == 'E')
+    if (direction == 'E')
     {
         x += 1;
     }
@@ -416,8 +416,8 @@ bool try_step(WayPointList *path, double &x, double &y, char dir)
     {
         y += 1;
     }
-    path->insert(0, x, y, dir);
-    print_state(path, x, y, dir);
+    path->insert(0, x, y, direction);
+    print_state(path, x, y, direction);
     return true;
 }
 
@@ -432,14 +432,14 @@ void run_robot(WayPointList *path, double xf, double yf, double startX, double s
     {
         attempts++;
 
-        char dir = pick_direction(x, y, xf, yf);
-        bool turning = (dir != heading);
-        heading = dir;
+        char direction = pick_direction(x, y, xf, yf);
+        bool turning = (direction != heading);
+        heading = direction;
 
-        if (!try_step(path, x, y, dir))
+        if (!try_step(path, x, y, direction))
         {
-            char freeDir = (dir == 'E') ? 'N' : 'E';
-            heading = freeDir;
+            char freeDirection = (direction == 'E') ? 'N' : 'E';
+            heading = freeDirection;
             int guard = 0;
             while (guard < 40 && !(x == xf && y == yf))
             {
