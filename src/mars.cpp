@@ -11,15 +11,6 @@ using namespace vex;
 
 brain Brain;
 
-#define waitUntil(condition) \
-    do                       \
-    {                        \
-        wait(5, msec);       \
-    } while (!(condition))
-
-#define repeat(iterations) \
-    for (int iterator = 0; iterator < iterations; iterator++)
-
 inertial BrainInertial = inertial();
 motor LeftDriveSmart = motor(PORT1, 1, false);
 motor RightDriveSmart = motor(PORT6, 1, true);
@@ -29,19 +20,7 @@ smartdrive Drivetrain = smartdrive(LeftDriveSmart, RightDriveSmart, BrainInertia
 distance Distance4 = distance(PORT4);
 optical Optical3 = optical(PORT3);
 
-// Get random numbers from the inertial sensor
-void initializeRandomSeed()
-{
-    wait(100, msec);
-    double xAxis = BrainInertial.acceleration(xaxis) * 1000;
-    double yAxis = BrainInertial.acceleration(yaxis) * 1000;
-    double zAxis = BrainInertial.acceleration(zaxis) * 1000;
-    int seed = int(xAxis + yAxis + zAxis);
-    srand(seed);
-}
-
 // Callibrate the inertian sensor
-bool vexcode_initial_drivetrain_calibration_completed = false;
 void calibrateDrivetrain()
 {
     wait(200, msec);
@@ -54,16 +33,8 @@ void calibrateDrivetrain()
     {
         wait(25, msec);
     }
-    vexcode_initial_drivetrain_calibration_completed = true;
     Brain.Screen.clearScreen();
     Brain.Screen.setCursor(1, 1);
-}
-
-// Run startup calibration
-void vexcodeInit()
-{
-    calibrateDrivetrain();
-    initializeRandomSeed();
 }
 
 #pragma endregion VEXcode Generated Robot Configuration
@@ -82,7 +53,7 @@ const double DETECT_MM = 40.0;
 
 // Navigation
 const double HEADING_NORTH = 180.0;
-const double HEADING_NAST = 270.0;
+const double HEADING_EAST = 270.0;
 const int START_TILES = 0;
 const double UNIT_MM = 20.0;
 const double HEADING_TOLERANCE_DEG = 3.0;
@@ -110,7 +81,7 @@ double heading_error(double target)
 // Convert direction to heading
 double heading_for(char direction)
 {
-    return (direction == 'N') ? HEADING_NORTH : HEADING_NAST;
+    return (direction == 'N') ? HEADING_NORTH : HEADING_EAST;
 }
 
 // Node
@@ -502,7 +473,7 @@ void run_robot(WayPointList *path, double xf, double yf, double startX, double s
 // main function
 int main()
 {
-    vexcodeInit();
+    calibrateDrivetrain();
 
     cali_inertial();
 
