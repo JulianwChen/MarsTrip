@@ -69,28 +69,32 @@ void vexcodeInit()
 #pragma endregion VEXcode Generated Robot Configuration
 
 // Constants used in the program
-const double UNIT_MM = 20.0;
-const int DRIVE_RPM = 10;
-const int TURN_RPM = 10;
-const int CALI_TURN_RPM = 15;
 
+// Drive Train
+const int TURN_RPM = 10;
+const int CALIBRATION_TURN_RPM = 15;
+const int DRIVE_RPM = 10;
+
+
+// Detection
 const double DETECT_MM = 40.0;
 
+
+// Navigation
+const double HEADING_NORTH = 180.0;
+const double HEADING_NAST = 270.0;
 const int START_TILES = 0;
+const double UNIT_MM = 20.0;
+const double HEADING_TOLERANCE_DEG = 3.0;
+const double WHEEL_DIAMETER_MM = 200.0;
 
-const double HEADING_N = 180.0;
-const double HEADING_E = 270.0;
-
-const double HEADING_TOL_DEG = 3.0;
-
-const double WHEEL_TRAVEL_MM = 200.0;
-
+// Calibration
 const double IMU_CAL_TIMEOUT_MS = 8000.0;
 const double CALI_SPIN_TIMEOUT_MS = 30000.0;
 const double TURN_TIMEOUT_MS = 6000.0;
 const double SETTLE_MS = 250.0;
 
-const double MM_PER_MS = (DRIVE_RPM * WHEEL_TRAVEL_MM) / 60000.0;
+const double MM_PER_MS = (DRIVE_RPM * WHEEL_DIAMETER_MM) / 60000.0;
 const double DRIVE_TIMEOUT_MS = (UNIT_MM / MM_PER_MS) * 3.0 + 1500.0;
 
 double overshootN = 0.0;
@@ -106,7 +110,7 @@ double heading_error(double target)
 // Convert direction to heading
 double heading_for(char direction)
 {
-    return (direction == 'N') ? HEADING_N : HEADING_E;
+    return (direction == 'N') ? HEADING_NORTH : HEADING_NAST;
 }
 
 // Node
@@ -124,8 +128,12 @@ struct Node
 // Doubly Linked List
 class WayPointList
 {
-
 private:
+    Node *head;
+    Node *tail;
+    int size;
+    int capacity;
+
     // Remove a node from the list
     // Private since it is not called outside the class
     void removeNode(Node *node)
@@ -151,11 +159,6 @@ private:
     }
 
 public:
-    Node *head;
-    Node *tail;
-    int size;
-    int capacity;
-
     // Constructor
     WayPointList(int cap = 10)
         : head(nullptr), tail(nullptr), size(0), capacity(cap) {}
@@ -173,7 +176,7 @@ public:
     }
 
     // Insert a new node at the end of the list
-    void insert(int id, double x, double y, char angle)
+    void insertNode(int id, double x, double y, char angle)
     {
         Node *newNode = new Node(id, x, y, angle);
         if (!head)
@@ -189,19 +192,16 @@ public:
         size++;
     }
 
-    // Remove a node at a specific index
-    void remove(int index)
+    // Get the current number of nodes in the list
+    int getSize() const
     {
-        if (index < 0 || index >= size)
-        {
-            return;
-        }
-        Node *current = head;
-        for (int i = 0; i < index; i++)
-        {
-            current = current->next;
-        }
-        removeNode(current);
+        return size;
+    }
+
+    // Get the maximum number of nodes before a checkpoint is needed
+    int getCapacity() const
+    {
+        return capacity;
     }
 
     // Update the list
@@ -221,7 +221,7 @@ public:
     }
 
     // Display the path on the brain screen
-    void show(double x, double y, char heading) const
+    void print(double x, double y, char heading) const
     {
         Brain.Screen.clearScreen();
         Brain.Screen.setCursor(1, 1);
@@ -232,8 +232,7 @@ public:
         while (current && row <= 12)
         {
             Brain.Screen.setCursor(row, 1);
-            Brain.Screen.print("id%d (%.0f,%.0f) %c",
-                               current->id, current->x, current->y, current->angle);
+            Brain.Screen.print("id%d (%.0f,%.0f) %c", current->id, current->x, current->y, current->angle);
             current = current->next;
             row++;
         }
@@ -243,8 +242,8 @@ public:
 // Calibrate the inertial sensor
 void cali_inertial()
 {
-    LeftDriveSmart.setVelocity(CALI_TURN_RPM, rpm);
-    RightDriveSmart.setVelocity(CALI_TURN_RPM, rpm);
+    LeftDriveSmart.setVelocity(CALIBRATION_TURN_RPM, rpm);
+    RightDriveSmart.setVelocity(CALIBRATION_TURN_RPM, rpm);
     BrainInertial.calibrate();
 
     double t0 = Brain.timer(msec);
@@ -254,7 +253,7 @@ void cali_inertial()
     }
     wait(1, seconds);
 
-    Drivetrain.setTurnVelocity(CALI_TURN_RPM, rpm);
+    Drivetrain.setTurnVelocity(CALIBRATION_TURN_RPM, rpm);
     Drivetrain.turn(left);
     wait(400, msec);
 
@@ -286,7 +285,7 @@ void face(char direction)
         Drivetrain.stop(brake);
         wait(SETTLE_MS, msec);
 
-        if (fabs(heading_error(heading)) <= HEADING_TOL_DEG)
+        if (fabs(heading_error(heading)) <= HEADING_TOLERANCE_DEG)
         {
             return;
         }
@@ -362,7 +361,7 @@ bool guarded_drive(char direction)
     if (blocked)
     {
         double travelledDeg = LeftDriveSmart.position(degrees) - startDeg;
-        double travelledMM = (travelledDeg / 360.0) * WHEEL_TRAVEL_MM;
+        double travelledMM = (travelledDeg / 360.0) * WHEEL_DIAMETER_MM;
         if (travelledMM < 0.0)
         {
             travelledMM = 0.0;
@@ -398,14 +397,14 @@ char pick_direction(double x, double y, double xf, double yf)
 // Print current robot position and path
 void print_state(WayPointList *path, double x, double y, char heading)
 {
-    path->show(x, y, heading);
+    path->print(x, y, heading);
 }
 
 // Update path display
 void checkpoint(WayPointList *path, double x, double y, char heading)
 {
     path->update();
-    path->show(x, y, heading);
+    path->print(x, y, heading);
     wait(1, seconds);
 }
 
@@ -414,7 +413,7 @@ void record_obstacle(WayPointList *path, double x, double y, char direction)
 {
     double ox = x + (direction == 'E' ? 1 : 0);
     double oy = y + (direction == 'N' ? 1 : 0);
-    path->insert(1, ox, oy, direction);
+    path->insertNode(1, ox, oy, direction);
     checkpoint(path, x, y, direction);
 }
 
@@ -445,7 +444,7 @@ bool try_step(WayPointList *path, double &x, double &y, char direction)
     {
         y += 1;
     }
-    path->insert(0, x, y, direction);
+    path->insertNode(0, x, y, direction);
     print_state(path, x, y, direction);
     return true;
 }
@@ -488,7 +487,7 @@ void run_robot(WayPointList *path, double xf, double yf, double startX, double s
             continue;
         }
 
-        if (turning || path->size >= path->capacity)
+        if (turning || path->getSize() >= path->getCapacity())
         {
             checkpoint(path, x, y, heading);
         }
@@ -513,7 +512,7 @@ int main()
     double x = 0, y = (double)(-START_TILES);
     char heading = 'N';
 
-    path.insert(0, x, y, heading);
+    path.insertNode(0, x, y, heading);
     print_state(&path, x, y, heading);
 
     int guard = 0;
