@@ -29,6 +29,7 @@ smartdrive Drivetrain = smartdrive(LeftDriveSmart, RightDriveSmart, BrainInertia
 distance Distance4 = distance(PORT4);
 optical Optical3 = optical(PORT3);
 
+// Get random numbers from the inertial sensor
 void initializeRandomSeed()
 {
     wait(100, msec);
@@ -39,6 +40,7 @@ void initializeRandomSeed()
     srand(seed);
 }
 
+// Callibrate the inertian sensor
 bool vexcode_initial_drivetrain_calibration_completed = false;
 void calibrateDrivetrain()
 {
@@ -57,6 +59,7 @@ void calibrateDrivetrain()
     Brain.Screen.setCursor(1, 1);
 }
 
+// Run startup calibration
 void vexcodeInit()
 {
     calibrateDrivetrain();
@@ -65,6 +68,7 @@ void vexcodeInit()
 
 #pragma endregion VEXcode Generated Robot Configuration
 
+// Constants used in the program
 const double UNIT_MM = 20.0;
 const int DRIVE_RPM = 10;
 const int TURN_RPM = 10;
@@ -92,17 +96,20 @@ const double DRIVE_TIMEOUT_MS = (UNIT_MM / MM_PER_MS) * 3.0 + 1500.0;
 double overshootN = 0.0;
 double overshootE = 0.0;
 
+// Find the error between current heading and target heading
 double heading_error(double target)
 {
-    double e = target - BrainInertial.heading(degrees);
-    return fmod(e + 540.0, 360.0) - 180.0;
+    double error = target - BrainInertial.heading(degrees);
+    return fmod(error + 540.0, 360.0) - 180.0;
 }
 
-double heading_for(char dir)
+// Convert direction to heading
+double heading_for(char direction)
 {
-    return (dir == 'N') ? HEADING_N : HEADING_E;
+    return (direction == 'N') ? HEADING_N : HEADING_E;
 }
 
+// Node
 struct Node
 {
     int id;
@@ -114,10 +121,12 @@ struct Node
         : id(id_), x(x_), y(y_), ang(ang_), next(nullptr), prev(nullptr) {}
 };
 
+// Doubly Linked List
 class WayPointList
 {
 
 private:
+    // Remove a node from the list
     void removeNode(Node *node)
     {
         if (node->prev)
@@ -146,9 +155,11 @@ public:
     int size;
     int capacity;
 
+    // Constructor
     WayPointList(int cap = 10)
         : head(nullptr), tail(nullptr), size(0), capacity(cap) {}
 
+    // Destructor
     ~WayPointList()
     {
         Node *current = head;
@@ -160,6 +171,7 @@ public:
         }
     }
 
+    // Insert a new node at the end of the list
     void insert(int id, double x, double y, char ang)
     {
         Node *newNode = new Node(id, x, y, ang);
@@ -176,6 +188,7 @@ public:
         size++;
     }
 
+    // Remove a node at a specific index
     void remove(int index)
     {
         if (index < 0 || index >= size)
@@ -190,6 +203,8 @@ public:
         removeNode(current);
     }
 
+    // Update the list
+    // Remove consecutive nodes with id 0 and the same angle
     void update()
     {
         Node *current = head;
@@ -204,6 +219,7 @@ public:
         }
     }
 
+    // Display the path on the brain screen
     void show(double x, double y, char heading) const
     {
         Brain.Screen.clearScreen();
@@ -223,6 +239,7 @@ public:
     }
 };
 
+// Calibrate the inertial sensor
 void cali_inertial()
 {
     LeftDriveSmart.setVelocity(CALI_TURN_RPM, rpm);
@@ -250,9 +267,10 @@ void cali_inertial()
     wait(1, seconds);
 }
 
-void face(char dir)
+// Turn the robot to face a specific direction
+void face(char direction)
 {
-    double heading = heading_for(dir);
+    double heading = heading_for(direction);
     Drivetrain.setTurnVelocity(TURN_RPM, rpm);
 
     for (int attempt = 0; attempt < 2; attempt++)
@@ -274,11 +292,13 @@ void face(char dir)
     }
 }
 
+// Read the distance from the distance sensor in millimeters
 double read_distance_mm()
 {
     return Distance4.objectDistance(mm);
 }
 
+// Scan forward three times and return the best distance reading
 double scan_forward_mm()
 {
     double best = -1.0;
@@ -292,17 +312,20 @@ double scan_forward_mm()
     return best;
 }
 
+// Check if an object is detected within a certain distance
 bool object_detected(double distance)
 {
     return (distance > 0 && distance <= DETECT_MM);
 }
 
+// Check if there is an obstacle ahead
 bool obstacle_ahead()
 {
     wait(SETTLE_MS, msec);
     return object_detected(scan_forward_mm());
 }
 
+// Drive forward, stop if there is an obstacle
 bool guarded_drive(char direction)
 {
     double *bank = (direction == 'N') ? &overshootN : &overshootE;
@@ -356,6 +379,7 @@ bool guarded_drive(char direction)
     return true;
 }
 
+// Pick the next direction to move in
 char pick_direction(double x, double y, double xf, double yf)
 {
     if (x >= xf)
@@ -370,11 +394,13 @@ char pick_direction(double x, double y, double xf, double yf)
     return (dx <= dy) ? 'E' : 'N';
 }
 
+// Print current robot position and path
 void print_state(WayPointList *path, double x, double y, char heading)
 {
     path->show(x, y, heading);
 }
 
+// Update path display
 void checkpoint(WayPointList *path, double x, double y, char heading)
 {
     path->update();
@@ -382,6 +408,7 @@ void checkpoint(WayPointList *path, double x, double y, char heading)
     wait(1, seconds);
 }
 
+// Record an obstacle in the path
 void record_obstacle(WayPointList *path, double x, double y, char direction)
 {
     double ox = x + (direction == 'E' ? 1 : 0);
@@ -390,6 +417,7 @@ void record_obstacle(WayPointList *path, double x, double y, char direction)
     checkpoint(path, x, y, direction);
 }
 
+// Attempt to move one step in the specified direction
 bool try_step(WayPointList *path, double &x, double &y, char direction)
 {
     face(direction);
@@ -421,6 +449,7 @@ bool try_step(WayPointList *path, double &x, double &y, char direction)
     return true;
 }
 
+// Drive along the path to the target until it reaches the goal
 void run_robot(WayPointList *path, double xf, double yf, double startX, double startY, char startHeading)
 {
     double x = startX, y = startY;
@@ -470,6 +499,7 @@ void run_robot(WayPointList *path, double xf, double yf, double startX, double s
     Brain.Screen.print("Mars pathed! (%.0f,%.0f)", x, y);
 }
 
+// main function
 int main()
 {
     vexcodeInit();
